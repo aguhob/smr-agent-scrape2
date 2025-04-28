@@ -1,3 +1,4 @@
+
 import pandas as pd
 from sentence_transformers import SentenceTransformer
 import faiss
@@ -6,15 +7,6 @@ import numpy as np
 
 # Load scraped data
 scraped_df = pd.read_csv("scraped_smr_sources.csv")
-
-# CLEANUP step: Drop rows where 'content' is missing or empty
-scraped_df = scraped_df.dropna(subset=['content'])
-scraped_df = scraped_df[scraped_df['content'].str.strip() != '']
-
-# Check if any valid documents exist
-if scraped_df.empty:
-    st.error("⚠️ No valid nuclear-related articles found. Please check your data or run the scraper again.")
-    st.stop()
 
 # Load embedding model
 model = SentenceTransformer('all-MiniLM-L6-v2')
@@ -34,7 +26,7 @@ def chunk_text(text, max_tokens=500):
         chunks.append(current_chunk.strip())
     return chunks
 
-# Prepare documents and metadata
+# Prepare all chunks
 documents = []
 metadata = []
 
@@ -47,21 +39,22 @@ for idx, row in scraped_df.iterrows():
             'archive_url': row['archive_url']
         })
 
-# Embed documents
+# Embed all chunks
 embeddings = model.encode(documents)
+
+# Build FAISS index
 dim = embeddings.shape[1]
 index = faiss.IndexFlatL2(dim)
 index.add(np.array(embeddings))
 
-# Save embeddings (optional - not critical if running live)
+# Save for future use
 faiss.write_index(index, "faiss_index.idx")
 pd.DataFrame(metadata).to_csv("metadata.csv", index=False)
 
 # Streamlit App
 st.title("SMR Risk Report Generator 🚀")
-
-st.subheader("Tailor your report:")
-audience = st.selectbox("Choose your audience:", ["Investor", "Community", "Industrial Real Estate"])
+metadata_df = pd.read_csv("metadata.csv")
+index = faiss.read_index("faiss_index.idx")
 
 query = st.text_input("Enter your question about SMRs:")
 
@@ -70,21 +63,10 @@ if query:
     D, I = index.search(np.array(query_embedding), k=5)
 
     st.subheader("Relevant Findings:")
-    context_chunks = []
     for idx in I[0]:
         st.write(documents[idx])
-        st.caption(f"Source: {metadata[idx]['original_url']}")
-        context_chunks.append(documents[idx])
+        st.caption(f"Source: {metadata_df.iloc[idx]['original_url']}")
 
-    st.subheader("Customized Risk Summary:")
-
-    # Customize summary based on audience
-    if audience == "Investor":
-        focus = "Focus on financial risks, ROI, asset impacts, and regulatory hurdles."
-    elif audience == "Community":
-        focus = "Focus on safety, health, environmental risks, and community acceptance."
-    else:
-        focus = "Focus on zoning, siting issues, industrial insurance, and property valuation."
-
-    full_context = "\n".join(context_chunks)
-    st.write(f"**({audience} Focused Summary Placeholder)**\n\n{focus}\n\n" + full_context[:2000] + "...")
+    st.subheader("Auto-Generated Summary:")
+    full_context = "\n".join([documents[idx] for idx in I[0]])
+    st.write("(Summarizer Placeholder)\n" + full_context[:2000] + "...")
