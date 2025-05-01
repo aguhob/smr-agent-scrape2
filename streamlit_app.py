@@ -1,3 +1,4 @@
+# streamlit_app.py
 import pandas as pd
 from sentence_transformers import SentenceTransformer
 import faiss
@@ -7,13 +8,13 @@ import numpy as np
 # Load scraped data
 scraped_df = pd.read_csv("scraped_smr_sources.csv")
 
-# CLEANUP step: Drop rows where 'content' is missing or empty
+# CLEANUP step: Drop rows with missing or invalid content
 scraped_df = scraped_df.dropna(subset=['content'])
-scraped_df = scraped_df[scraped_df['content'].str.strip() != '']
+scraped_df = scraped_df[scraped_df['content'].apply(lambda x: isinstance(x, str) and x.strip() != '')]
 
-# Check if any valid documents exist
+# If all rows were filtered out, stop the app with a warning
 if scraped_df.empty:
-    st.error("⚠️ No valid nuclear-related articles found. Please check your data or run the scraper again.")
+    st.error("⚠️ No valid nuclear-related articles found. Please check your data or rerun the scraper.")
     st.stop()
 
 # Load embedding model
@@ -53,11 +54,11 @@ dim = embeddings.shape[1]
 index = faiss.IndexFlatL2(dim)
 index.add(np.array(embeddings))
 
-# Save embeddings (optional - not critical if running live)
+# Save embeddings (optional)
 faiss.write_index(index, "faiss_index.idx")
 pd.DataFrame(metadata).to_csv("metadata.csv", index=False)
 
-# Streamlit App
+# Streamlit App UI
 st.title("SMR Risk Report Generator 🚀")
 
 st.subheader("Tailor your report:")
@@ -78,7 +79,7 @@ if query:
 
     st.subheader("Customized Risk Summary:")
 
-    # Customize summary based on audience
+    # Customize summary by audience
     if audience == "Investor":
         focus = "Focus on financial risks, ROI, asset impacts, and regulatory hurdles."
     elif audience == "Community":

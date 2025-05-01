@@ -2,5 +2,7 @@ streamlit
 faiss-cpu
 sentence-transformers
 pandas
+numpy
 beautifulsoup4
 requests
+torch==2.0.1
