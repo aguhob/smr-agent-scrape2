@@ -8,11 +8,19 @@ import numpy as np
 # Load scraped data
 scraped_df = pd.read_csv("scraped_smr_sources.csv")
 
+# Normalize column names in case of extra spaces or format issues
+scraped_df.columns = scraped_df.columns.str.strip()
+
+# Check if 'content' column exists
+if 'content' not in scraped_df.columns:
+    st.error("❌ The 'content' column is missing from scraped_smr_sources.csv. Please check the file format.")
+    st.stop()
+
 # CLEANUP step: Drop rows with missing or invalid content
 scraped_df = scraped_df.dropna(subset=['content'])
 scraped_df = scraped_df[scraped_df['content'].apply(lambda x: isinstance(x, str) and x.strip() != '')]
 
-# If all rows were filtered out, stop the app with a warning
+# Stop the app if no valid content remains
 if scraped_df.empty:
     st.error("⚠️ No valid nuclear-related articles found. Please check your data or rerun the scraper.")
     st.stop()
