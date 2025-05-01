@@ -1,39 +1,91 @@
-# streamlit_app.py – Fresh Start (Smart Scraped Viewer Only)
+# streamlit_app.py
 import pandas as pd
+from sentence_transformers import SentenceTransformer
+import faiss
 import streamlit as st
+import numpy as np
 
-st.set_page_config(page_title="SMR Article Viewer", layout="wide")
+# Load scraped data
+scraped_df = pd.read_csv("scraped_smr_sources.csv")
 
-# Load and validate data
-try:
-    scraped_df = pd.read_csv("scraped_smr_sources.csv")
-except Exception as e:
-    st.error(f"❌ Failed to load scraped_smr_sources.csv: {e}")
-    st.stop()
+# CLEANUP step: Drop rows with missing or invalid content
+scraped_df = scraped_df.dropna(subset=['content'])
+scraped_df = scraped_df[scraped_df['content'].apply(lambda x: isinstance(x, str) and x.strip() != '')]
 
-# Normalize and clean
-scraped_df.columns = scraped_df.columns.str.strip()
-if 'content' not in scraped_df.columns:
-    st.error("❌ Missing 'content' column in the CSV file.")
-    st.stop()
-
-# Ensure all content is a string
-scraped_df['content'] = scraped_df['content'].fillna('').astype(str)
-scraped_df = scraped_df[scraped_df['content'].str.strip() != '']
+# If all rows were filtered out, stop the app with a warning
 if scraped_df.empty:
-    st.warning("⚠️ No usable articles found. Try re-running the scraper.")
+    st.error("⚠️ No valid nuclear-related articles found. Please check your data or rerun the scraper.")
     st.stop()
 
-# UI
-st.title("🔍 SMR Smart-Scraped Article Viewer")
-st.markdown("Explore scraped articles containing **'nuclear'**, pulled from Archive.org.")
+# Load embedding model
+model = SentenceTransformer('all-MiniLM-L6-v2')
 
-# Sidebar filters
-sources = scraped_df['original_url'].dropna().unique()
-selected_source = st.sidebar.selectbox("Choose source", sources)
+# Chunk text into smaller pieces
+def chunk_text(text, max_tokens=500):
+    sentences = text.split(". ")
+    chunks = []
+    current_chunk = ""
+    for sentence in sentences:
+        if len(current_chunk.split()) + len(sentence.split()) <= max_tokens:
+            current_chunk += sentence + ". "
+        else:
+            chunks.append(current_chunk.strip())
+            current_chunk = sentence + ". "
+    if current_chunk:
+        chunks.append(current_chunk.strip())
+    return chunks
 
-filtered = scraped_df[scraped_df['original_url'] == selected_source]
+# Prepare documents and metadata
+documents = []
+metadata = []
 
-for _, row in filtered.iterrows():
-    st.subheader(f"[{row['original_url']}]({row['archive_url']})")
-    st.write(row['content'][:3000] + ("..." if len(row['content']) > 3000 else ""))
+for idx, row in scraped_df.iterrows():
+    chunks = chunk_text(row['content'])
+    for chunk in chunks:
+        documents.append(chunk)
+        metadata.append({
+            'original_url': row['original_url'],
+            'archive_url': row['archive_url']
+        })
+
+# Embed documents
+embeddings = model.encode(documents)
+dim = embeddings.shape[1]
+index = faiss.IndexFlatL2(dim)
+index.add(np.array(embeddings))
+
+# Save embeddings (optional)
+faiss.write_index(index, "faiss_index.idx")
+pd.DataFrame(metadata).to_csv("metadata.csv", index=False)
+
+# Streamlit App UI
+st.title("SMR Risk Report Generator 🚀")
+
+st.subheader("Tailor your report:")
+audience = st.selectbox("Choose your audience:", ["Investor", "Community", "Industrial Real Estate"])
+
+query = st.text_input("Enter your question about SMRs:")
+
+if query:
+    query_embedding = model.encode([query])
+    D, I = index.search(np.array(query_embedding), k=5)
+
+    st.subheader("Relevant Findings:")
+    context_chunks = []
+    for idx in I[0]:
+        st.write(documents[idx])
+        st.caption(f"Source: {metadata[idx]['original_url']}")
+        context_chunks.append(documents[idx])
+
+    st.subheader("Customized Risk Summary:")
+
+    # Customize summary by audience
+    if audience == "Investor":
+        focus = "Focus on financial risks, ROI, asset impacts, and regulatory hurdles."
+    elif audience == "Community":
+        focus = "Focus on safety, health, environmental risks, and community acceptance."
+    else:
+        focus = "Focus on zoning, siting issues, industrial insurance, and property valuation."
+
+    full_context = "\n".join(context_chunks)
+    st.write(f"**({audience} Focused Summary Placeholder)**\n\n{focus}\n\n" + full_context[:2000] + "...")
