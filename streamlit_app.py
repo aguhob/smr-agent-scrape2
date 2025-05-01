@@ -1,35 +1,39 @@
-# streamlit_app.py – Smart Scraping Viewer Only
+# streamlit_app.py – Fresh Start (Smart Scraped Viewer Only)
 import pandas as pd
 import streamlit as st
 
-# Load scraped data
-scraped_df = pd.read_csv("scraped_smr_sources.csv")
+st.set_page_config(page_title="SMR Article Viewer", layout="wide")
 
-# Normalize column names
+# Load and validate data
+try:
+    scraped_df = pd.read_csv("scraped_smr_sources.csv")
+except Exception as e:
+    st.error(f"❌ Failed to load scraped_smr_sources.csv: {e}")
+    st.stop()
+
+# Normalize and clean
 scraped_df.columns = scraped_df.columns.str.strip()
-
-# Validate 'content' column
 if 'content' not in scraped_df.columns:
-    st.error("❌ The 'content' column is missing from scraped_smr_sources.csv. Please check the file format.")
+    st.error("❌ Missing 'content' column in the CSV file.")
     st.stop()
 
-# Clean and convert
-scraped_df['content'] = scraped_df['content'].astype(str)
-scraped_df = scraped_df[scraped_df['content'].apply(lambda x: x.strip() != '' and x.lower() != 'nan')]
-
-# Stop if empty
+# Ensure all content is a string
+scraped_df['content'] = scraped_df['content'].fillna('').astype(str)
+scraped_df = scraped_df[scraped_df['content'].str.strip() != '']
 if scraped_df.empty:
-    st.error("⚠️ No valid nuclear-related articles found. Please re-run the scraper.")
+    st.warning("⚠️ No usable articles found. Try re-running the scraper.")
     st.stop()
 
-# Streamlit UI
-st.title("SMR Smart Scraping Explorer")
-st.markdown("View the most recent scraped articles that mention **nuclear**.")
+# UI
+st.title("🔍 SMR Smart-Scraped Article Viewer")
+st.markdown("Explore scraped articles containing **'nuclear'**, pulled from Archive.org.")
 
-# Article filter
-selected_url = st.selectbox("Choose a source to view:", scraped_df['original_url'].unique())
-article_rows = scraped_df[scraped_df['original_url'] == selected_url]
+# Sidebar filters
+sources = scraped_df['original_url'].dropna().unique()
+selected_source = st.sidebar.selectbox("Choose source", sources)
 
-for _, row in article_rows.iterrows():
-    st.markdown(f"### [{row['original_url']}]({row['archive_url']})")
+filtered = scraped_df[scraped_df['original_url'] == selected_source]
+
+for _, row in filtered.iterrows():
+    st.subheader(f"[{row['original_url']}]({row['archive_url']})")
     st.write(row['content'][:3000] + ("..." if len(row['content']) > 3000 else ""))
