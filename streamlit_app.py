@@ -16,11 +16,11 @@ if 'content' not in scraped_df.columns:
     st.error("❌ The 'content' column is missing from scraped_smr_sources.csv. Please check the file format.")
     st.stop()
 
-# CLEANUP step: Drop rows with missing or invalid content
-scraped_df = scraped_df.dropna(subset=['content'])
-scraped_df = scraped_df[scraped_df['content'].apply(lambda x: isinstance(x, str) and x.strip() != '')]
+# Force all entries to string before filtering
+scraped_df['content'] = scraped_df['content'].astype(str)
 
-# Final hardening: Force 'content' to be string
+# CLEANUP step: Drop rows with empty or 'nan' string content
+scraped_df = scraped_df[scraped_df['content'].apply(lambda x: x.strip() != '' and x.lower() != 'nan')]
 scraped_df['content'] = scraped_df['content'].astype(str)
 
 # Stop the app if no valid content remains
