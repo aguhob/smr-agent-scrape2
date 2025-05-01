@@ -20,6 +20,9 @@ if 'content' not in scraped_df.columns:
 scraped_df = scraped_df.dropna(subset=['content'])
 scraped_df = scraped_df[scraped_df['content'].apply(lambda x: isinstance(x, str) and x.strip() != '')]
 
+# Final hardening: Force 'content' to be string
+scraped_df['content'] = scraped_df['content'].astype(str)
+
 # Stop the app if no valid content remains
 if scraped_df.empty:
     st.error("⚠️ No valid nuclear-related articles found. Please check your data or rerun the scraper.")
