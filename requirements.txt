@@ -1,8 +1,9 @@
 streamlit
+openai
 faiss-cpu
-sentence-transformers
 pandas
 numpy
-beautifulsoup4
+fpdf
 requests
-torch==2.0.1
+beautifulsoup4
+python-dotenv
