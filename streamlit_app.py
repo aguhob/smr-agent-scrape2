@@ -20,7 +20,7 @@ embedding_model = "text-embedding-ada-002"
 @st.cache_resource
 def embed_sources_and_build_index():
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-    texts = df_sources["preview"].astype(str).tolist()
+    texts = df_sources["content"].astype(str).tolist()
     embeddings = []
     for i, text in enumerate(texts):
         try:
